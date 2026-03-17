@@ -1,0 +1,22 @@
+{
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "type": "command",
+      "command": "bash atelier-plugin/hooks/plan-context.sh",
+      "description": "Load Atelier plan state on session start"
+    },
+    {
+      "event": "PreCompact",
+      "type": "command",
+      "command": "bash atelier-plugin/hooks/plan-context.sh",
+      "description": "Preserve plan context during compaction"
+    },
+    {
+      "event": "Stop",
+      "type": "command",
+      "command": "bash atelier-plugin/hooks/stop-guard.sh",
+      "description": "Check for pending plan sections before stopping"
+    }
+  ]
+}
