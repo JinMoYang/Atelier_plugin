@@ -1,0 +1,8 @@
+{
+  "name": "atelier",
+  "description": "Plan co-authoring, section-wise execution, and live visual dashboard",
+  "version": "0.1.0",
+  "author": {
+    "name": "jmyang"
+  }
+}
