@@ -1,42 +1,75 @@
 #!/usr/bin/env bash
-# Load Atelier plan state from backend
+# Load Atelier plan state from the local plan file
 # Used by SessionStart and PreCompact hooks
+# No backend connection needed — reads the file directly
 
-BACKEND="${ATELIER_BACKEND_URL:-http://localhost:8000}"
-WORKSPACE_ID="${ATELIER_WORKSPACE_ID:-}"
+# Find plan file in current project
+PLAN_FILE=""
+for f in doc-*.md plan.md; do
+  if [ -f "notes/$f" ]; then
+    PLAN_FILE="notes/$f"
+    break
+  fi
+done
 
-if [ -z "$WORKSPACE_ID" ]; then
-  WORKSPACE_ID=$(basename "$(pwd)")
+# Also check workspace root
+if [ -z "$PLAN_FILE" ]; then
+  for f in doc-*.md plan.md; do
+    if [ -f "$f" ]; then
+      PLAN_FILE="$f"
+      break
+    fi
+  done
 fi
 
-RESPONSE=$(curl -s --connect-timeout 2 "${BACKEND}/api/plan/by-workspace/${WORKSPACE_ID}" 2>/dev/null)
-
-if [ $? -ne 0 ] || [ -z "$RESPONSE" ]; then
+if [ -z "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ]; then
   exit 0
 fi
 
-echo "$RESPONSE" | python3 -c "
-import sys, json
+python3 -c "
+import sys, re
+
 try:
-    data = json.load(sys.stdin)
-    sections = data.get('sections', [])
+    with open('$PLAN_FILE', 'r') as f:
+        content = f.read()
+
+    # Parse plan meta
+    meta_match = re.search(r'<!--\s*plan:meta\s+(.*?)\s*-->', content)
+    meta = {}
+    if meta_match:
+        for m in re.finditer(r'(\w+)=([\w./-]+)', meta_match.group(1)):
+            meta[m.group(1)] = m.group(2)
+
+    # Parse sections
+    sections = []
+    for m in re.finditer(r'^##\s+(.+)$', content, re.MULTILINE):
+        heading = re.sub(r'\s*\[done\]\s*', '', m.group(1), flags=re.IGNORECASE).strip()
+        # Look for section meta on next line
+        pos = m.end()
+        rest = content[pos:pos+200]
+        sm = re.search(r'<!--\s*section:meta\s+(.*?)\s*-->', rest)
+        status = 'pending'
+        rnd = '0'
+        if sm:
+            kvs = dict(re.findall(r'(\w+)=([\w./-]+)', sm.group(1)))
+            status = kvs.get('status', 'pending')
+            rnd = kvs.get('round', '0')
+        elif '[done]' in m.group(1).lower():
+            status = 'done'
+        sections.append((heading, status, rnd))
+
     if not sections:
         sys.exit(0)
-    meta = data.get('meta', {})
+
     print('ATELIER_PLAN_STATE:')
-    print(f'Conversation: {data.get(\"conversation_id\", \"?\")}')
-    print(f'Workspace: {data.get(\"workspace_id\", \"?\")}')
     if meta:
-        print(f'Phase: {meta.get(\"phase\", \"unknown\")} | Round: {meta.get(\"round\", 0)}/{meta.get(\"max_rounds\", 0)}')
+        print(f'Phase: {meta.get(\"phase\", \"unknown\")} | Round: {meta.get(\"round\", \"0\")}/{meta.get(\"max_rounds\", \"0\")}')
+    print(f'File: $PLAN_FILE')
     print()
-    for s in sections:
-        icon = {'done': '✓', 'in_progress': '●', 'skipped': '⊘'}.get(s['status'], '○')
-        extra = f' (round {s[\"round\"]})' if s['round'] > 0 else ''
-        print(f'{icon} {s[\"heading\"]}{extra}')
-        if s.get('body'):
-            for line in s['body'].split(chr(10))[:3]:
-                if line.strip():
-                    print(f'  {line.strip()}')
+    for heading, status, rnd in sections:
+        icon = {'done': '✓', 'in_progress': '●', 'skipped': '⊘'}.get(status, '○')
+        extra = f' (round {rnd})' if rnd != '0' else ''
+        print(f'{icon} {heading}{extra}')
     print()
 except Exception:
     pass
