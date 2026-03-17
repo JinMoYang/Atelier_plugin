@@ -1,17 +1,17 @@
 ---
-name: go
+name: execute
 description: Execute pending plan sections (or specific ones)
 ---
 
-# /atelier:go [section names...]
+# /execute [section names...]
 
 Start executing plan sections.
 
 ## Usage
 
-- `/atelier:go` — execute all pending sections in priority order
-- `/atelier:go "Data ingestion"` — execute only that section
-- `/atelier:go "Data ingestion" "Validation"` — execute those two sections
+- `/execute` — execute all pending sections in priority order
+- `/execute "Data ingestion"` — execute only that section
+- `/execute "Data ingestion" "Validation"` — execute those two sections
 
 ## Behavior
 
