@@ -1,25 +1,60 @@
 #!/usr/bin/env bash
 # Load Atelier plan state from the local plan file
 # Used by SessionStart and PreCompact hooks
-# No backend connection needed — reads the file directly
+#
+# Detection order:
+# 1. File with <!-- plan:meta --> marker (active plan)
+# 2. .atelier config file pointing to plan path
+# 3. Most recent file with ## headings (asks user to confirm)
 
-# Find plan file in current project
 PLAN_FILE=""
-for f in doc-*.md plan.md; do
-  if [ -f "notes/$f" ]; then
-    PLAN_FILE="notes/$f"
-    break
-  fi
-done
 
-# Also check workspace root
-if [ -z "$PLAN_FILE" ]; then
-  for f in doc-*.md plan.md; do
-    if [ -f "$f" ]; then
-      PLAN_FILE="$f"
-      break
+# Strategy 1: Find file with plan:meta marker
+find_meta_plan() {
+  local dirs=("." "notes" "docs/superpowers/plans" "docs/superpowers/specs" "docs")
+  for dir in "${dirs[@]}"; do
+    [ -d "$dir" ] || continue
+    local found
+    found=$(grep -rl '<!-- plan:meta' "$dir" --include='*.md' 2>/dev/null | head -1)
+    if [ -n "$found" ]; then
+      echo "$found"
+      return
     fi
   done
+}
+
+# Strategy 2: Read from .atelier config
+read_config_plan() {
+  if [ -f ".atelier" ]; then
+    local path
+    path=$(grep '^plan:' .atelier 2>/dev/null | sed 's/^plan:[[:space:]]*//')
+    if [ -n "$path" ] && [ -f "$path" ]; then
+      echo "$path"
+    fi
+  fi
+}
+
+# Strategy 3: Most recent .md file with ## headings
+find_recent_plan() {
+  local dirs=("docs/superpowers/plans" "notes" "docs" ".")
+  for dir in "${dirs[@]}"; do
+    [ -d "$dir" ] || continue
+    local found
+    found=$(grep -rl '^## ' "$dir" --include='*.md' 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+    if [ -n "$found" ]; then
+      echo "$found"
+      return
+    fi
+  done
+}
+
+# Try each strategy in order
+PLAN_FILE=$(find_meta_plan)
+if [ -z "$PLAN_FILE" ]; then
+  PLAN_FILE=$(read_config_plan)
+fi
+if [ -z "$PLAN_FILE" ]; then
+  PLAN_FILE=$(find_recent_plan)
 fi
 
 if [ -z "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ]; then
@@ -44,7 +79,6 @@ try:
     sections = []
     for m in re.finditer(r'^##\s+(.+)$', content, re.MULTILINE):
         heading = re.sub(r'\s*\[done\]\s*', '', m.group(1), flags=re.IGNORECASE).strip()
-        # Look for section meta on next line
         pos = m.end()
         rest = content[pos:pos+200]
         sm = re.search(r'<!--\s*section:meta\s+(.*?)\s*-->', rest)
