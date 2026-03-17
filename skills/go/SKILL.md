@@ -1,17 +1,17 @@
 ---
-name: execute
+name: go
 description: Execute pending plan sections (or specific ones)
 ---
 
-# /execute [section names...]
+# /go [section names...]
 
 Start executing plan sections.
 
 ## Usage
 
-- `/execute` — execute all pending sections in priority order
-- `/execute "Data ingestion"` — execute only that section
-- `/execute "Data ingestion" "Validation"` — execute those two sections
+- `/go` — execute all pending sections in priority order
+- `/go "Data ingestion"` — execute only that section
+- `/go "Data ingestion" "Validation"` — execute those two sections
 
 ## Behavior
 
